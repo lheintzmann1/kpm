@@ -16,36 +16,14 @@ limitations under the License.
 
 package kpm.commands
 
+import com.github.ajalt.clikt.core.CliktCommand
 import java.util.Scanner
 import java.io.File
 
-fun init() {
-    val scanner = Scanner(System.`in`)
-
-    println("Initializing a new Kotlin project with KPM...")
-
-    println("Project name: ")
-    val name = scanner.nextLine().ifBlank { "my-kpm-app" }
-
-    val projectDir = scanner.nextLine().ifBlank { "my-project" }
-    /*if (projectDir.exists()) {
-        println("Directory '$projectDir' already exists.")
-        return
-    }*/
-
-    // clone the template located in src/main/resources/template/base
-    val templateDir = File("src/main/resources/template/base")
-    if (!templateDir.exists()) {
-        println("Template directory does not exist: ${templateDir.absolutePath}")
-        return
+class Init: CliktCommand() {
+    override fun run() {
+        println("Initializing new project...")
     }
-    val projectPath = File(projectDir)
-    if (!projectPath.mkdirs()) {
-        println("Failed to create project directory: ${projectPath.absolutePath}")
-        return
-    }
-    templateDir.copyRecursively(projectPath, overwrite = true)
-    println("Project '$name' initialized in directory '$projectDir'.")
 
-    println("Project initialized successfully.")
+
 }

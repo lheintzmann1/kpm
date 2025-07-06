@@ -16,12 +16,15 @@ limitations under the License.
 
 package kpm
 
-import core.Cli
+import com.github.ajalt.clikt.core.*
+import kpm.commands.*
 
-fun main(args: Array<String>) {
-    // Initialize the CLI application
-    val cli = Cli()
-
-    // Run the CLI with the provided arguments
-    cli.run(args)
+class Kpm : CliktCommand() {
+    override fun run() { }
 }
+
+fun main(args: Array<String>) = Kpm()
+    .subcommands(
+        Init()
+    )
+    .main(args)
