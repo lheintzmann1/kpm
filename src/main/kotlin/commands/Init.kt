@@ -17,13 +17,53 @@ limitations under the License.
 package kpm.commands
 
 import com.github.ajalt.clikt.core.CliktCommand
+import kpm.core.Constants as Consts
 import java.util.Scanner
 import java.io.File
 
 class Init: CliktCommand() {
     override fun run() {
         println("Initializing new project...")
-    }
 
+        try {
+            if (!File(Consts.KPM_TEMPLATES.path).exists()) {
+                File(Consts.KPM_TEMPLATES.path).mkdirs()
+            }
+
+            if (!File("${Consts.KPM_TEMPLATES}/base.zip").exists()) {
+                val zipURL: String = "${Consts.TEMPLATE_BASE}/archive/refs/heads/main.zip"
+                val command = if (System.getProperty("os.name").startsWith("Windows")) {
+                    "curl -L $zipURL -o ${Consts.KPM_TEMPLATES}\\base.zip"
+                } else {
+                    "wget $zipURL -O ${Consts.KPM_TEMPLATES}/base.zip"
+                }
+                println("Downloading project template...")
+                val process = Runtime.getRuntime().exec(arrayOf(command))
+                process.waitFor()
+                if (process.exitValue() != 0) {
+                    println("Failed to download the project template.")
+                    return
+                }
+            }
+
+            println("Unzipping project template to the current directory...")
+            val unzipCommand = if (System.getProperty("os.name").startsWith("Windows")) {
+                "tar -xf ${Consts.KPM_TEMPLATES}\\base.zip --strip-components=1"
+            } else {
+                "unzip -o ${Consts.KPM_TEMPLATES}/base.zip -d ."
+            }
+            val unzipProcess = Runtime.getRuntime().exec(arrayOf(unzipCommand))
+            unzipProcess.waitFor()
+            if (unzipProcess.exitValue() != 0) {
+                println("Failed to unzip the project template.")
+                return
+            }
+
+            println("Project initialized successfully!")
+
+        } catch (e: Exception) {
+            println("An error occurred while initializing the project: ${e.message}")
+        }
+    }
 
 }
