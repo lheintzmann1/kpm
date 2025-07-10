@@ -18,7 +18,6 @@ package kpm.commands
 
 import com.github.ajalt.clikt.core.CliktCommand
 import kpm.core.Constants as Consts
-import java.util.Scanner
 import java.io.File
 
 class Init: CliktCommand() {
@@ -30,34 +29,37 @@ class Init: CliktCommand() {
                 File(Consts.KPM_TEMPLATES.path).mkdirs()
             }
 
-            if (!File("${Consts.KPM_TEMPLATES}/base.zip").exists()) {
-                val zipURL: String = "${Consts.TEMPLATE_BASE}/archive/refs/heads/main.zip"
-                val command = if (System.getProperty("os.name").startsWith("Windows")) {
-                    "curl -L $zipURL -o ${Consts.KPM_TEMPLATES}\\base.zip"
+            val zipPath = "${Consts.KPM_TEMPLATES}${File.separator}base.zip"
+            if (!File(zipPath).exists()) {
+                val zipURL = "${Consts.TEMPLATE_BASE}/archive/refs/heads/main.zip"
+                val curlCmd = if (Consts.PLATFORM == "windows") {
+                    arrayOf("cmd.exe", "/c", "curl", "-L", zipURL, "-o", zipPath)
                 } else {
-                    "wget $zipURL -O ${Consts.KPM_TEMPLATES}/base.zip"
+                    arrayOf("curl", "-L", zipURL, "-o", zipPath)
                 }
                 println("Downloading project template...")
-                val process = Runtime.getRuntime().exec(arrayOf(command))
+                val process = ProcessBuilder(*curlCmd)
+                    .inheritIO()
+                    .start()
                 process.waitFor()
                 if (process.exitValue() != 0) {
-                    println("Failed to download the project template.")
+                    println("Failed to download the project template. Make sure 'curl' is installed.")
                     return
                 }
             }
 
             println("Unzipping project template to the current directory...")
-            val unzipCommand = if (System.getProperty("os.name").startsWith("Windows")) {
-                arrayOf("cmd.exe", "/c", "tar -xf ${Consts.KPM_TEMPLATES}\\base.zip --strip-components=1")
+            val unzipCmd = if (Consts.PLATFORM == "windows") {
+                arrayOf("cmd.exe", "/c", "tar", "-xf", zipPath, "--strip-components=1")
             } else {
-                arrayOf("sh", "-c", "unzip -o ${Consts.KPM_TEMPLATES}/base.zip -d .")
+                arrayOf("unzip", "-o", zipPath, "-d", ".")
             }
-            val unzipProcess = ProcessBuilder(*unzipCommand)
+            val unzipProcess = ProcessBuilder(*unzipCmd)
                 .inheritIO()
                 .start()
             unzipProcess.waitFor()
             if (unzipProcess.exitValue() != 0) {
-                println("Failed to unzip the project template.")
+                println("Failed to unzip the project template. Make sure 'unzip' is installed.")
                 return
             }
 
@@ -67,5 +69,4 @@ class Init: CliktCommand() {
             println("An error occurred while initializing the project: ${e.message}")
         }
     }
-
 }
