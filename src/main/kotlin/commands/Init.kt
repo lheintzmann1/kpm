@@ -48,11 +48,13 @@ class Init: CliktCommand() {
 
             println("Unzipping project template to the current directory...")
             val unzipCommand = if (System.getProperty("os.name").startsWith("Windows")) {
-                "tar -xf ${Consts.KPM_TEMPLATES}\\base.zip --strip-components=1"
+                arrayOf("cmd.exe", "/c", "tar -xf ${Consts.KPM_TEMPLATES}\\base.zip --strip-components=1")
             } else {
-                "unzip -o ${Consts.KPM_TEMPLATES}/base.zip -d ."
+                arrayOf("sh", "-c", "unzip -o ${Consts.KPM_TEMPLATES}/base.zip -d .")
             }
-            val unzipProcess = Runtime.getRuntime().exec(arrayOf(unzipCommand))
+            val unzipProcess = ProcessBuilder(*unzipCommand)
+                .inheritIO()
+                .start()
             unzipProcess.waitFor()
             if (unzipProcess.exitValue() != 0) {
                 println("Failed to unzip the project template.")
