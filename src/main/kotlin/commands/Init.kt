@@ -17,56 +17,27 @@ limitations under the License.
 package kpm.commands
 
 import com.github.ajalt.clikt.core.CliktCommand
-import kpm.core.Constants as Consts
-import java.io.File
+import com.github.ajalt.clikt.core.Context
+import kpm.utils.*
 
 class Init: CliktCommand() {
     override fun run() {
         println("Initializing new project...")
 
         try {
-            if (!File(Consts.KPM_TEMPLATES.path).exists()) {
-                File(Consts.KPM_TEMPLATES.path).mkdirs()
-            }
-
-            val zipPath = "${Consts.KPM_TEMPLATES}${File.separator}base.zip"
-            if (!File(zipPath).exists()) {
-                val zipURL = "${Consts.TEMPLATE_BASE}/archive/refs/heads/main.zip"
-                val curlCmd = if (Consts.PLATFORM == "windows") {
-                    arrayOf("cmd.exe", "/c", "curl", "-L", zipURL, "-o", zipPath)
-                } else {
-                    arrayOf("curl", "-L", zipURL, "-o", zipPath)
-                }
-                println("Downloading project template...")
-                val process = ProcessBuilder(*curlCmd)
-                    .inheritIO()
-                    .start()
-                process.waitFor()
-                if (process.exitValue() != 0) {
-                    println("Failed to download the project template. Make sure 'curl' is installed.")
-                    return
-                }
-            }
-
-            println("Unzipping project template to the current directory...")
-            val unzipCmd = if (Consts.PLATFORM == "windows") {
-                arrayOf("cmd.exe", "/c", "tar", "-xf", zipPath, "--strip-components=1")
-            } else {
-                arrayOf("unzip", "-o", zipPath, "-d", ".")
-            }
-            val unzipProcess = ProcessBuilder(*unzipCmd)
-                .inheritIO()
-                .start()
-            unzipProcess.waitFor()
-            if (unzipProcess.exitValue() != 0) {
-                println("Failed to unzip the project template. Make sure 'unzip' is installed.")
-                return
-            }
+            ensureTemplatesDir()
+            if (!downloadTemplate()) return
+            if (!unzipTemplate()) return
 
             println("Project initialized successfully!")
-
         } catch (e: Exception) {
             println("An error occurred while initializing the project: ${e.message}")
         }
+    }
+
+    override fun help(context: Context): String {
+        return """
+            Initializes a new KPM project in the current directory.
+        """.trimIndent()
     }
 }
