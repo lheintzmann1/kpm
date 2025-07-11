@@ -17,8 +17,16 @@ limitations under the License.
 package kpm.core
 
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kpm.core.Constants.KPM_HOME
 
 object Logger {
+    init {
+        System.setProperty("org.slf4j.simpleLogger.logFile", "$KPM_HOME/kpm.log")
+        System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "info")
+        System.setProperty("org.slf4j.simpleLogger.showDateTime", "true")
+        System.setProperty("org.slf4j.simpleLogger.dateTimeFormat", "yyyy-MM-dd HH:mm:ss")
+    }
+
     private val logger = KotlinLogging.logger {}
 
     fun info(message: String) {
