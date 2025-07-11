@@ -6,6 +6,14 @@
 
 A fast, declarative, and extensible package manager for Kotlin. Inspired by NPM, Yarn, and Nix, KPM simplifies dependency management and reproducible builds in Kotlin projects.
 
+## Features
+
+The following commands have been implemented:
+- `init`: Initialize a new KPM project using the base template.
+- `install`: Apply the `kpm.json` file to the current project, installing dependencies and generating a `kpm.lock` file.
+- `version`: Display the current version of KPM, Java, and Kotlin.
+- `help`: Show help information for KPM commands.
+
 ## License
 
 This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for details.
