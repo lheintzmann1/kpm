@@ -11,7 +11,7 @@ A fast, declarative, and extensible package manager for Kotlin. Inspired by NPM,
 
 The following commands have been implemented:
 - `init`: Initialize a new KPM project using the base template.
-- `install`: Apply the `kpm.json` file to the current project, installing dependencies and generating a `kpm.lock` file.
+- `install`: Apply the `kpm.json` file to the current project, installing dependencies and generating a `kpm-lock.json` file.
 - `version`: Display the current version of KPM, Java, and Kotlin.
 - `help`: Show help information for KPM commands.
 
