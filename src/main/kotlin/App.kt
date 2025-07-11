@@ -19,6 +19,7 @@ package kpm
 import com.github.ajalt.clikt.core.*
 import kpm.commands.*
 import kpm.core.Logger
+import kotlin.system.exitProcess
 
 class Kpm : CliktCommand() {
     override fun run() { }
@@ -34,6 +35,6 @@ fun main(args: Array<String>) {
             .main(args)
     } catch (e: Exception) {
         Logger.error("An unexpected error occurred: ${e.message}", e)
-        System.exit(1)
+        exitProcess(1)
     }
 }
