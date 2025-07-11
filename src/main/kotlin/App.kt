@@ -30,6 +30,7 @@ fun main(args: Array<String>) {
         Kpm()
             .subcommands(
                 Init(),
+                Install(),
                 Version()
             )
             .main(args)

@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "org.luhe"
-version = "0.0.0.3"
+version = "0.0.0.4"
 
 repositories {
     mavenCentral()
@@ -32,6 +32,16 @@ tasks.register("generateVersionProperties") {
 
 tasks.named("processResources") {
     dependsOn("generateVersionProperties")
+}
+
+tasks.jar.configure {
+    manifest {
+        attributes(mapOf("Main-Class" to "kpm.AppKt"))
+    }
+    configurations["compileClasspath"].forEach { file: File ->
+        from(zipTree(file.absoluteFile))
+    }
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
 }
 
 tasks.test {
