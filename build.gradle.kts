@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "org.luhe"
-version = "0.0.0.2"
+version = "0.0.0.3"
 
 repositories {
     mavenCentral()
