@@ -16,6 +16,22 @@ dependencies {
     testImplementation(kotlin("test"))
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
     implementation("com.github.ajalt.clikt:clikt:5.0.3")
+    implementation("io.github.oshai:kotlin-logging-jvm:7.0.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
+    implementation("org.slf4j:slf4j-api:2.0.13")
+    implementation("org.slf4j:slf4j-simple:2.0.13")
+}
+
+tasks.register("generateVersionProperties") {
+    doLast {
+        val versionFile = file("src/main/resources/version.properties")
+        versionFile.writeText("version=$version\n")
+        println("Generated version.properties with version $version")
+    }
+}
+
+tasks.named("processResources") {
+    dependsOn("generateVersionProperties")
 }
 
 tasks.test {

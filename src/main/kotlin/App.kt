@@ -18,13 +18,22 @@ package kpm
 
 import com.github.ajalt.clikt.core.*
 import kpm.commands.*
+import kpm.core.Logger
 
 class Kpm : CliktCommand() {
     override fun run() { }
 }
 
-fun main(args: Array<String>) = Kpm()
-    .subcommands(
-        Init()
-    )
-    .main(args)
+fun main(args: Array<String>) {
+    try {
+        Kpm()
+            .subcommands(
+                Init(),
+                Version()
+            )
+            .main(args)
+    } catch (e: Exception) {
+        Logger.error("An unexpected error occurred: ${e.message}", e)
+        System.exit(1)
+    }
+}

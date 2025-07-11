@@ -18,24 +18,20 @@ package kpm.commands
 
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
-import kotlinx.coroutines.runBlocking
+import kpm.core.Constants as Consts
 import kpm.core.Logger
-import kpm.services.Template
 
-class Init: CliktCommand() {
-    private val templateService = Template()
-
-    override fun run(): Unit = runBlocking {
-        templateService.initProject()
-            .onError { message, cause ->
-                Logger.error("Failed to initialize project $message", cause)
-                throw RuntimeException(message, cause)
-            }
+class Version : CliktCommand() {
+    override fun run() {
+        Logger.info("KPM (Kotlin Package Manager) version ${Consts.KPM_VERSION}")
+        Logger.info("Platform: ${Consts.PLATFORM}")
+        Logger.info("Java version: ${System.getProperty("java.version")}")
+        Logger.info("Kotlin version: ${KotlinVersion.CURRENT}")
     }
 
     override fun help(context: Context): String {
         return """
-            Initializes a new KPM project in the current directory.
+            Show KPM version information
         """.trimIndent()
     }
 }
