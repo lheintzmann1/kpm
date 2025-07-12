@@ -31,22 +31,22 @@ object Logger {
 
     fun info(message: String) {
         logger.info { message }
-        println("ℹ️  $message")
+        println("[INFO]  $message")
     }
 
     fun success(message: String) {
         logger.info { message }
-        println("✅ $message")
+        println("[SUCCESS] $message")
     }
 
     fun warning(message: String) {
         logger.warn { message }
-        println("⚠️  $message")
+        println("[WARN]  $message")
     }
 
     fun error(message: String, throwable: Throwable? = null) {
         logger.error(throwable) { message }
-        println("❌ $message")
+        println("[ERROR] $message")
     }
 
     fun debug(message: String) {
