@@ -94,12 +94,12 @@ class StoreManager {
                 gcRootDir.createDirectories()
             }
 
+            // Clear existing GC roots for this project
+            clearGCRoots(gcRootDir)
+
             // Create symbolic links to store paths (GC roots)
             storePaths.forEachIndexed { index, storePath ->
                 val linkPath = gcRootDir.resolve("dep-$index")
-                if (linkPath.exists()) {
-                    Files.delete(linkPath)
-                }
 
                 try {
                     Files.createSymbolicLink(linkPath, Path.of(storePath))
@@ -115,5 +115,126 @@ class StoreManager {
         } catch (e: Exception) {
             KResult.Error("Failed to create GC roots: ${e.message}", e)
         }
+    }
+
+    private fun clearGCRoots(gcRootDir: Path) {
+        try {
+            if (gcRootDir.exists()) {
+                Files.walk(gcRootDir)
+                    .sorted(Comparator.reverseOrder())
+                    .filter { it != gcRootDir }
+                    .forEach { path ->
+                        try {
+                            Files.delete(path)
+                        } catch (e: Exception) {
+                            Logger.warning("Failed to delete GC root: $path - ${e.message}")
+                        }
+                    }
+            }
+        } catch (e: Exception) {
+            Logger.warning("Failed to clear GC roots: ${e.message}")
+        }
+    }
+
+    suspend fun garbageCollect(): KResult<Int> = withContext(Dispatchers.IO) {
+        try {
+            Logger.info("Starting garbage collection...")
+
+            // Get all referenced store paths from GC roots
+            val referencedPaths = getAllReferencedPaths()
+
+            // Get all store paths
+            val allStorePaths = getAllStorePaths()
+
+            // Find unreferenced paths
+            val unreferencedPaths = allStorePaths - referencedPaths
+
+            Logger.info("Found ${unreferencedPaths.size} unreferenced dependencies to clean up")
+
+            // Delete unreferenced paths
+            var deletedCount = 0
+            for (path in unreferencedPaths) {
+                try {
+                    Files.walk(path)
+                        .sorted(Comparator.reverseOrder())
+                        .forEach { filePath ->
+                            try {
+                                readOnly(filePath, false)
+                                Files.delete(filePath)
+                            } catch (e: Exception) {
+                                Logger.warning("Failed to delete file: $filePath - ${e.message}")
+                            }
+                        }
+                    deletedCount++
+                    Logger.debug("Deleted unreferenced dependency: $path")
+                } catch (e: Exception) {
+                    Logger.warning("Failed to delete unreferenced dependency: $path - ${e.message}")
+                }
+            }
+
+            Logger.success("Garbage collection completed: $deletedCount dependencies removed")
+            KResult.Success(deletedCount)
+        } catch (e: Exception) {
+            KResult.Error("Garbage collection failed: ${e.message}", e)
+        }
+    }
+
+    private fun readOnly(path: Path, readOnly: Boolean) {
+        try {
+            if (readOnly) {
+                path.toFile().setReadOnly()
+            } else {
+                path.toFile().setWritable(true)
+            }
+        } catch (e: Exception) {
+            Logger.warning("Failed to set read-only status for $path: ${e.message}")
+        }
+    }
+
+    private fun getAllReferencedPaths(): Set<Path> {
+        val referencedPaths = mutableSetOf<Path>()
+
+        try {
+            if (gcRootsPath.exists()) {
+                Files.walk(gcRootsPath)
+                    .filter { it.isRegularFile() || Files.isSymbolicLink(it) }
+                    .forEach { gcRoot ->
+                        try {
+                            val targetPath = if (Files.isSymbolicLink(gcRoot)) {
+                                Files.readSymbolicLink(gcRoot)
+                            } else {
+                                // For reference files (on systems without symlink support)
+                                Path.of(gcRoot.readText().trim())
+                            }
+
+                            if (targetPath.exists()) {
+                                referencedPaths.add(targetPath.parent)
+                            }
+                        } catch (e: Exception) {
+                            Logger.warning("Failed to read GC root: $gcRoot - ${e.message}")
+                        }
+                    }
+            }
+        } catch (e: Exception) {
+            Logger.warning("Failed to collect referenced paths: ${e.message}")
+        }
+
+        return referencedPaths
+    }
+
+    private fun getAllStorePaths(): Set<Path> {
+        val storePaths = mutableSetOf<Path>()
+
+        try {
+            if (storePath.exists()) {
+                Files.walk(storePath, 1)
+                    .filter { it != storePath && it.isDirectory() }
+                    .forEach { storePaths.add(it) }
+            }
+        } catch (e: Exception) {
+            Logger.warning("Failed to collect store paths: ${e.message}")
+        }
+
+        return storePaths
     }
 }

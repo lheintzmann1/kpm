@@ -149,6 +149,12 @@ class DependencyManager {
                 Logger.warning("Failed to create GC roots: $message")
             }
 
+        // garbage collection
+        storeManager.garbageCollect()
+            .onError { message, cause ->
+                Logger.warning("Failed to perform garbage collection: $message")
+            }
+
         Logger.success("Successfully installed all dependencies!")
 
         KResult.Success(Unit)
