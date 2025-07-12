@@ -16,8 +16,8 @@ object HashUtils {
                 digest.update(buffer, 0, bytesRead)
             }
         }
-
-        return digest.digest().joinToString("") { "%02x".format(it) }
+        // Return only the first 32 characters of the hash
+        return digest.digest().joinToString("") { "%02x".format(it) }.take(32)
     }
 
     fun calculateStringHash(input: String, algorithm: String = "SHA-256"): String {
