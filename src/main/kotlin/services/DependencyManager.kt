@@ -1,4 +1,20 @@
-﻿package kpm.services
+﻿/*
+Copyright 2025 Lucas HEINTZMANN
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package kpm.services
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -10,16 +26,15 @@ import kpm.models.MavenCoordinate
 import kpm.models.LockFile
 import kpm.models.DependencyEntry
 import kpm.utils.HashUtils
-import java.nio.file.Path
 import java.nio.file.Paths
 import kotlin.io.path.exists
-import kotlin.io.path.createDirectories
 import kpm.core.Constants as Consts
 
 class DependencyManager {
     private val mavenDownloader = MavenDownloader()
     private val manifestParser = ManifestParser()
     private val storeManager = StoreManager()
+    private val dependencyResolver = DependencyResolver()
 
     private val lockFilePath = Paths.get(Consts.MANIFEST_LOCK)
 
@@ -52,14 +67,40 @@ class DependencyManager {
             is KResult.Error -> LockFile("1.0", emptyMap())
         }
 
+        // Resolve all dependencies (including transitive)
+        Logger.info("Resolving transitive dependencies...")
+        val resolvedDependencies = dependencyResolver.resolveDependencies(coordinates)
+        val allDependencies = when (resolvedDependencies) {
+            is KResult.Success -> resolvedDependencies.data
+            is KResult.Error -> {
+                Logger.error("Failed to resolve dependencies: ${resolvedDependencies.message}")
+                return@withContext resolvedDependencies
+            }
+        }
+
+        // Check for conflicts
+        val conflicts = dependencyResolver.detectConflicts(allDependencies)
+        if (conflicts.isNotEmpty()) {
+            Logger.warning("Dependency conflicts detected:")
+            conflicts.forEach { conflict ->
+                Logger.warning("  ${conflict.artifact}: ${conflict.versions.joinToString(", ")}")
+            }
+            Logger.warning("Using latest version for conflicting dependencies")
+        }
+
+        // Deduplicate dependencies (use latest version for conflicts)
+        val uniqueDependencies = deduplicateDependencies(allDependencies)
+
+        Logger.info("Installing ${uniqueDependencies.size} unique dependencies (including ${uniqueDependencies.size - coordinates.size} transitive)")
+
         // Install dependencies concurrently
         val newDependencies = mutableMapOf<String, DependencyEntry>()
 
         try {
             coroutineScope {
-                coordinates.map { coord ->
+                uniqueDependencies.map { resolvedDep ->
                     async {
-                        val coordString = coord.toString()
+                        val coordString = resolvedDep.coordinate.toString()
 
                         // Check if already installed with same version
                         val existing = lockFileData.dependencies[coordString]
@@ -69,10 +110,11 @@ class DependencyManager {
                         }
 
                         // Download and install
-                        val result = installSingleDependency(coord)
+                        val result = installSingleDependency(resolvedDep)
                         when (result) {
                             is KResult.Success -> {
-                                Logger.success("Installed $coordString")
+                                val logPrefix = if (resolvedDep.depth == 0) "Installed" else "Installed (transitive)"
+                                Logger.success("$logPrefix $coordString")
                                 coordString to result.data
                             }
                             is KResult.Error -> {
@@ -107,10 +149,22 @@ class DependencyManager {
                 Logger.warning("Failed to create GC roots: $message")
             }
 
+        Logger.success("Successfully installed all dependencies!")
+
         KResult.Success(Unit)
     }
 
-    private suspend fun installSingleDependency(coordinate: MavenCoordinate): KResult<DependencyEntry> {
+    private fun deduplicateDependencies(dependencies: List<DependencyResolver.ResolvedDependency>): List<DependencyResolver.ResolvedDependency> {
+        val groupedByArtifact = dependencies.groupBy { "${it.coordinate.groupId}:${it.coordinate.artifactId}" }
+
+        return groupedByArtifact.values.map { versions ->
+            // Choose the latest version (simple string comparison for now)
+            versions.maxByOrNull { it.coordinate.version } ?: versions.first()
+        }.sortedBy { it.depth }
+    }
+
+    private suspend fun installSingleDependency(resolvedDep: DependencyResolver.ResolvedDependency): KResult<DependencyEntry> {
+        val coordinate = resolvedDep.coordinate
         Logger.debug("Installing dependency: $coordinate")
 
         // Download JAR
@@ -127,10 +181,12 @@ class DependencyManager {
         val storePath = storeManager.addToStore(jarPath, hash)
         when (storePath) {
             is KResult.Success -> {
+                val transitiveDeps = resolvedDep.transitiveDependencies.map { it.toString() }
                 val entry = DependencyEntry(
                     version = coordinate.version,
                     hash = hash,
-                    storePath = storePath.data.toString()
+                    storePath = storePath.data.toString(),
+                    transitiveDependencies = transitiveDeps
                 )
                 return KResult.Success(entry)
             }
