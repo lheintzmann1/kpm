@@ -29,9 +29,9 @@ import kotlin.io.path.*
 import kpm.core.Constants as Consts
 
 class StoreManager {
-    private val storePath: Path = Consts.KPM_HOME.resolve("store")
-    private val gcRootsPath: Path = Consts.KPM_HOME.resolve("gcroots")
-    private val profilesPath: Path = Consts.KPM_HOME.resolve("profiles")
+    private val storePath: Path = Consts.KPM_STORE
+    private val gcRootsPath: Path = Consts.KPM_GCROOTS
+    private val profilesPath: Path = Consts.KPM_PROFILES
 
     init {
         ensureStoreDirectories()

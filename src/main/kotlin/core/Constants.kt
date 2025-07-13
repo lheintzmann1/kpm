@@ -38,6 +38,9 @@ object Constants {
     val HOME: Path = Paths.get(System.getProperty("user.home"))
     val KPM_HOME: Path = HOME.resolve(".kpm")
     val KPM_TEMPLATES: Path = KPM_HOME.resolve("templates")
+    val KPM_STORE: Path = KPM_HOME.resolve("store")
+    val KPM_GCROOTS: Path = KPM_HOME.resolve("gcroots")
+    val KPM_PROFILES: Path = KPM_HOME.resolve("profiles")
 
     const val TEMPLATE_BASE: String = "https://github.com/KotlinPM/template-base"
 
