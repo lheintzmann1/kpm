@@ -67,7 +67,7 @@ class StoreManager {
             Files.move(filePath, finalPath, StandardCopyOption.REPLACE_EXISTING)
 
             // Make it read-only (like Nix)
-            finalPath.toFile().setReadOnly()
+            readOnly(finalPath, true)
 
             Logger.debug("Added to store: $finalPath")
             KResult.Success(finalPath)
