@@ -36,7 +36,7 @@ object Constants {
         else -> Platform.OTHER
     }
     val HOME: Path = Paths.get(System.getProperty("user.home"))
-    val KPM_HOME: Path = HOME.resolve(".kpm")
+    val KPM_HOME: Path = HOME.resolve(".kpm").also { it.toFile().mkdirs() }
     val KPM_TEMPLATES: Path = KPM_HOME.resolve("templates")
     val KPM_STORE: Path = KPM_HOME.resolve("store")
     val KPM_GCROOTS: Path = KPM_HOME.resolve("gcroots")

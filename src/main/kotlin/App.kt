@@ -31,6 +31,7 @@ fun main(args: Array<String>) {
             .subcommands(
                 Init(),
                 Install(),
+                Build(),
                 Gc(),
                 Version()
             )

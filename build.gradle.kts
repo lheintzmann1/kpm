@@ -1,12 +1,12 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    kotlin("jvm") version "2.1.21"
-    kotlin("plugin.serialization") version "2.1.21"
+    kotlin("jvm") version "2.2.0"
+    kotlin("plugin.serialization") version "2.2.0"
 }
 
 group = "org.luhe"
-version = "0.0.0.17"
+version = "0.0.0.19"
 
 repositories {
     mavenCentral()
@@ -20,6 +20,10 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
     implementation("org.slf4j:slf4j-api:2.0.13")
     implementation("org.slf4j:slf4j-simple:2.0.13")
+    implementation("org.jetbrains.kotlin:kotlin-build-tools-api:2.2.0")
+    implementation("org.jetbrains.kotlin:kotlin-compiler-embeddable:2.2.0")
+    implementation("org.jetbrains.kotlin:kotlin-stdlib:2.2.0")
+    implementation("com.google.code.gson:gson:2.10.1")
 }
 
 tasks.register("generateVersionProperties") {
