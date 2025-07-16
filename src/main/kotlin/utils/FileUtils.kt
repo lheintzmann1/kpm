@@ -24,6 +24,13 @@ import kotlin.io.path.createDirectory
 import kotlin.io.path.exists
 
 object FileUtils {
+    /**
+     * Ensures that the specified directory exists. If it does not exist, it will be created.
+     * Returns a KResult indicating success or failure.
+     *
+     * @param path The path to the directory to ensure exists.
+     * @return KResult<Unit> indicating success or failure.
+     */
     fun ensureDirectoryExists(path: Path): KResult<Unit> {
         return try {
             if (!path.exists()) {
@@ -36,6 +43,11 @@ object FileUtils {
         }
     }
 
+    /**
+     * Ensures that the KPM directories exist.
+     *
+     * @return KResult<Unit> indicating success or failure.
+     */
     fun ensureKpmDirectories(): KResult<Unit> {
         val dirs = listOf(
             Consts.KPM_HOME,
@@ -52,6 +64,11 @@ object FileUtils {
         return KResult.Success(Unit)
     }
 
+    /**
+     * Checks if the current directory is a KPM project directory by looking for the presence of the manifest file.
+     *
+     * @return Boolean indicating whether the current directory is a KPM project directory.
+     */
     fun isProjectDirectory(): Boolean {
         val manifestPath = Paths.get(Consts.MANIFEST)
         return manifestPath.exists()

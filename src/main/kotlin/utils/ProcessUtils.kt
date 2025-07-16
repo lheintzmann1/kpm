@@ -25,6 +25,14 @@ import kpm.core.Platform
 import java.io.IOException
 
 object ProcessUtils {
+    /**
+     * Executes a shell command and returns the output.
+     *
+     * @param command The command to execute as a list of strings.
+     * @param timeoutMs The maximum time to wait for the command to complete, in milliseconds.
+     * @param workingDirectory Optional working directory for the command.
+     * @return A KResult containing the command output or an error message.
+     */
     suspend fun runCommand(
         command: List<String>,
         timeoutMs: Long = Consts.DL_TIMEOUT_MS,
@@ -58,6 +66,13 @@ object ProcessUtils {
         }
     }
 
+    /**
+     * Constructs a curl command for downloading a file.
+     *
+     * @param url The URL to download from.
+     * @param outputPath The path where the downloaded file should be saved.
+     * @return A list of strings representing the command to execute.
+     */
     private fun getCurlCommand(url: String, outputPath: String): List<String> {
         return when (Consts.PLATFORM) {
             Platform.WINDOWS -> listOf("cmd.exe", "/c", "curl", "-L", url, "-o", outputPath)
@@ -65,6 +80,13 @@ object ProcessUtils {
         }
     }
 
+    /**
+     * Constructs a command for unzipping a file.
+     *
+     * @param url The path to the zip file.
+     * @param destination The directory where the contents should be extracted.
+     * @return A list of strings representing the command to execute.
+     */
     private fun getUnzipCommand(url: String, destination: String): List<String> {
         return when (Consts.PLATFORM) {
             Platform.WINDOWS -> listOf("cmd.exe", "/c", "tar", "-xf", url, "--strip-components=1")
@@ -72,11 +94,25 @@ object ProcessUtils {
         }
     }
 
+    /**
+     * Downloads a file from the specified URL and saves it to the given output path.
+     *
+     * @param url The URL to download from.
+     * @param outputPath The path where the downloaded file should be saved.
+     * @return A KResult indicating success or failure.
+     */
     suspend fun downloadFile(url: String, outputPath: String): KResult<Unit> {
         val command = getCurlCommand(url, outputPath)
         return runCommand(command).map { Unit }
     }
 
+    /**
+     * Unzips a file to the specified destination directory.
+     *
+     * @param zipPath The path to the zip file.
+     * @param destination The directory where the contents should be extracted.
+     * @return A KResult indicating success or failure.
+     */
     suspend fun unzipFile(zipPath: String, destination: String): KResult<Unit> {
         val command = getUnzipCommand(zipPath, destination)
         return runCommand(command).map { Unit }
