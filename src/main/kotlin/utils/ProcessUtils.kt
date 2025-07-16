@@ -21,7 +21,6 @@ import kpm.core.KResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import kpm.core.Logger
 import kpm.core.Platform
 import java.io.IOException
 

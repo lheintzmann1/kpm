@@ -19,7 +19,7 @@ package kpm.commands
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
 import kotlinx.coroutines.runBlocking
-import kpm.core.Logger
+import kpm.utils.Logger
 import kpm.services.DependencyManager
 import kpm.services.ManifestParser
 import kpm.core.KResult

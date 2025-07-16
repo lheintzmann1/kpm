@@ -21,7 +21,7 @@ import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.default
 import kotlinx.coroutines.runBlocking
-import kpm.core.Logger
+import kpm.utils.Logger
 import kpm.services.ManifestParser
 import kpm.core.KResult
 import kpm.core.Constants as Consts

@@ -19,7 +19,7 @@ package kpm.services
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kpm.core.KResult
-import kpm.core.Logger
+import kpm.utils.Logger
 import kpm.utils.FileUtils
 import kpm.utils.ProcessUtils
 import java.nio.file.Path

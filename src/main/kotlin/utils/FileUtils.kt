@@ -17,7 +17,6 @@ limitations under the License.
 package kpm.utils
 
 import kpm.core.KResult
-import kpm.core.Logger
 import kpm.core.Constants as Consts
 import java.io.IOException
 import java.nio.file.*

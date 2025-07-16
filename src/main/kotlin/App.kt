@@ -18,7 +18,7 @@ package kpm
 
 import com.github.ajalt.clikt.core.*
 import kpm.commands.*
-import kpm.core.Logger
+import kpm.utils.Logger
 import kotlin.system.exitProcess
 
 class Kpm : CliktCommand() {

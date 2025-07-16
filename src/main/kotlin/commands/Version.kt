@@ -19,7 +19,7 @@ package kpm.commands
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
 import kpm.core.Constants as Consts
-import kpm.core.Logger
+import kpm.utils.Logger
 
 class Version : CliktCommand() {
     override fun run() {

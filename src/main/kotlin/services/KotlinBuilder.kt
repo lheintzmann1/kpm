@@ -16,7 +16,7 @@ limitations under the License.
 
 package kpm.services
 
-import kpm.core.Logger
+import kpm.utils.Logger
 import kpm.models.Manifest
 import kpm.core.KResult
 import org.jetbrains.kotlin.cli.common.ExitCode

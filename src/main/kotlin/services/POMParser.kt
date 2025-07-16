@@ -19,7 +19,7 @@ package kpm.services
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kpm.core.KResult
-import kpm.core.Logger
+import kpm.utils.Logger
 import kpm.models.MavenCoordinate
 import org.w3c.dom.Document
 import org.w3c.dom.Element

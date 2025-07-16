@@ -21,7 +21,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kpm.core.KResult
-import kpm.core.Logger
+import kpm.utils.Logger
 import kpm.models.MavenCoordinate
 import kpm.models.LockFile
 import kpm.models.DependencyEntry
