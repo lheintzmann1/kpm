@@ -37,6 +37,10 @@ class StoreManager {
         ensureStoreDirectories()
     }
 
+    /**
+     * Ensures that the necessary directories for the store, GC roots, and profiles exist.
+     * If they do not exist, they are created.
+     */
     private fun ensureStoreDirectories() {
         listOf(storePath, gcRootsPath, profilesPath).forEach { path ->
             if (!path.exists()) {
@@ -45,6 +49,14 @@ class StoreManager {
         }
     }
 
+    /**
+     * Adds a file to the store, moving it to a subdirectory based on its hash.
+     * If the file already exists in the store, it returns the existing path.
+     *
+     * @param filePath The path of the file to add.
+     * @param hash The hash of the file used for naming in the store.
+     * @return KResult containing the path in the store or an error message.
+     */
     suspend fun addToStore(filePath: Path, hash: String): KResult<Path> = withContext(Dispatchers.IO) {
         try {
             val storeSubPath = storePath.resolve(hash)
@@ -77,10 +89,24 @@ class StoreManager {
         }
     }
 
+    /**
+     * Checks if a given store path exists in the store.
+     *
+     * @param storePath The path to check in the store.
+     * @return Boolean indicating whether the path exists in the store.
+     */
     fun isInStore(storePath: String): Boolean {
         return Path.of(storePath).exists()
     }
 
+    /**
+     * Creates GC roots for the specified store paths.
+     * This method creates symbolic links in the GC roots directory pointing to the store paths.
+     * If symbolic links are not supported, it creates reference files instead.
+     *
+     * @param storePaths List of store paths to create GC roots for.
+     * @return KResult indicating success or failure of the operation.
+     */
     suspend fun createGCRoots(storePaths: List<String>): KResult<Unit> = withContext(Dispatchers.IO) {
         try {
             val currentProject = System.getProperty("user.dir")
@@ -117,6 +143,12 @@ class StoreManager {
         }
     }
 
+    /**
+     * Clears all GC roots for the current project.
+     * This method deletes all symbolic links and reference files in the GC roots directory.
+     *
+     * @param gcRootDir The directory containing the GC roots to clear.
+     */
     private fun clearGCRoots(gcRootDir: Path) {
         try {
             if (gcRootDir.exists()) {
@@ -136,6 +168,13 @@ class StoreManager {
         }
     }
 
+    /**
+     * Performs garbage collection by removing unreferenced dependencies from the store.
+     * It identifies all referenced paths from GC roots, compares them with all store paths,
+     * and deletes those that are not referenced.
+     *
+     * @return KResult containing the number of deleted dependencies or an error message.
+     */
     suspend fun garbageCollect(): KResult<Int> = withContext(Dispatchers.IO) {
         try {
             Logger.info("Starting garbage collection...")
@@ -179,6 +218,13 @@ class StoreManager {
         }
     }
 
+    /**
+     * Sets the read-only status for a file or directory.
+     * This is used to mimic the behavior of Nix store, where files are immutable.
+     *
+     * @param path The path to set as read-only or writable.
+     * @param readOnly If true, sets the file as read-only; otherwise, makes it writable.
+     */
     private fun readOnly(path: Path, readOnly: Boolean) {
         try {
             if (readOnly) {
@@ -191,6 +237,12 @@ class StoreManager {
         }
     }
 
+    /**
+     * Retrieves all referenced paths from the GC roots directory.
+     * It collects paths from symbolic links or reference files in the GC roots directory.
+     *
+     * @return Set of Paths that are referenced by GC roots.
+     */
     private fun getAllReferencedPaths(): Set<Path> {
         val referencedPaths = mutableSetOf<Path>()
 
@@ -222,6 +274,12 @@ class StoreManager {
         return referencedPaths
     }
 
+    /**
+     * Retrieves all store paths from the store directory.
+     * It collects all subdirectories in the store directory, which represent stored dependencies.
+     *
+     * @return Set of Paths representing all stored dependencies.
+     */
     private fun getAllStorePaths(): Set<Path> {
         val storePaths = mutableSetOf<Path>()
 

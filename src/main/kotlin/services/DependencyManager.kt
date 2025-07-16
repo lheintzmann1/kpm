@@ -38,6 +38,12 @@ class DependencyManager {
 
     private val lockFilePath = Paths.get(Consts.MANIFEST_LOCK)
 
+    /**
+     * Installs the specified dependencies, resolving transitive dependencies and handling conflicts.
+     *
+     * @param dependencies List of dependency coordinates in Maven format (e.g., "groupId:artifactId:version").
+     * @return KResult indicating success or failure.
+     */
     suspend fun installDependencies(dependencies: List<String>): KResult<Unit> = withContext(Dispatchers.IO) {
         Logger.info("Installing ${dependencies.size} dependencies...")
 
@@ -160,6 +166,13 @@ class DependencyManager {
         KResult.Success(Unit)
     }
 
+    /**
+     * Deduplicates dependencies by grouping them by artifact and selecting the latest version.
+     * This is a simple implementation that assumes version strings can be compared lexicographically.
+     *
+     * @param dependencies List of resolved dependencies.
+     * @return List of deduplicated dependencies, sorted by depth.
+     */
     private fun deduplicateDependencies(dependencies: List<DependencyResolver.ResolvedDependency>): List<DependencyResolver.ResolvedDependency> {
         val groupedByArtifact = dependencies.groupBy { "${it.coordinate.groupId}:${it.coordinate.artifactId}" }
 
@@ -169,6 +182,12 @@ class DependencyManager {
         }.sortedBy { it.depth }
     }
 
+    /**
+     * Installs a single resolved dependency, downloading its JAR and storing it.
+     *
+     * @param resolvedDep The resolved dependency to install.
+     * @return KResult containing the installed DependencyEntry or an error.
+     */
     private suspend fun installSingleDependency(resolvedDep: DependencyResolver.ResolvedDependency): KResult<DependencyEntry> {
         val coordinate = resolvedDep.coordinate
         Logger.debug("Installing dependency: $coordinate")

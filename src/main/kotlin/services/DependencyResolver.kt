@@ -32,6 +32,13 @@ class DependencyResolver {
         val depth: Int = 0
     )
 
+    /**
+     * Resolves the transitive dependencies for a list of root Maven coordinates.
+     *
+     * @param rootDependencies The initial list of Maven coordinates to resolve.
+     * @param maxDepth The maximum depth to resolve dependencies (default is 10).
+     * @return A KResult containing a list of resolved dependencies or an error message.
+     */
     suspend fun resolveDependencies(
         rootDependencies: List<MavenCoordinate>,
         maxDepth: Int = 10
@@ -68,6 +75,17 @@ class DependencyResolver {
         }
     }
 
+    /**
+     * Recursively resolves a single Maven coordinate and its transitive dependencies.
+     *
+     * @param coordinate The Maven coordinate to resolve.
+     * @param depth The current depth in the dependency tree.
+     * @param maxDepth The maximum allowed depth for resolution.
+     * @param resolved A mutable map to store resolved dependencies.
+     * @param visited A mutable set to track visited coordinates (not used here, but can be useful).
+     * @param resolving A mutable set to track currently resolving coordinates (for cycle detection).
+     * @return A KResult indicating success or failure of the resolution.
+     */
     private suspend fun resolveDependencyRecursive(
         coordinate: MavenCoordinate,
         depth: Int,
@@ -151,6 +169,12 @@ class DependencyResolver {
         return KResult.Success(Unit)
     }
 
+    /**
+     * Detects conflicts in resolved dependencies where multiple versions of the same artifact are present.
+     *
+     * @param dependencies The list of resolved dependencies to check for conflicts.
+     * @return A list of DependencyConflict objects representing the conflicts found.
+     */
     fun detectConflicts(dependencies: List<ResolvedDependency>): List<DependencyConflict> {
         val conflicts = mutableListOf<DependencyConflict>()
         val groupedByArtifact = dependencies.groupBy { "${it.coordinate.groupId}:${it.coordinate.artifactId}" }
@@ -167,6 +191,12 @@ class DependencyResolver {
         return conflicts
     }
 
+    /**
+     * Represents a conflict where multiple versions of the same artifact are present.
+     *
+     * @param artifact The identifier of the artifact (groupId:artifactId).
+     * @param versions The list of conflicting versions found for this artifact.
+     */
     data class DependencyConflict(
         val artifact: String,
         val versions: List<String>

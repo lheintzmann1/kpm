@@ -30,6 +30,13 @@ class ManifestParser {
         prettyPrint = true
     }
 
+    /**
+     * Parses a KPM manifest file and returns a [KResult] containing the parsed [Manifest].
+     * If the manifest is invalid, it returns an error with a descriptive message.
+     *
+     * @param manifestPath The path to the KPM manifest file.
+     * @return A [KResult] containing the parsed [Manifest] or an error message.
+     */
     fun parseManifest(manifestPath: Path): KResult<Manifest> {
         return try {
             val content = manifestPath.readText()
@@ -50,6 +57,13 @@ class ManifestParser {
         }
     }
 
+    /**
+     * Parses a KPM lock file and returns a [KResult] containing the parsed [LockFile].
+     * If the lock file is invalid, it returns an error with a descriptive message.
+     *
+     * @param lockFilePath The path to the KPM lock file.
+     * @return A [KResult] containing the parsed [LockFile] or an error message.
+     */
     fun parseLockFile(lockFilePath: Path): KResult<LockFile> {
         return try {
             val content = lockFilePath.readText()
@@ -62,6 +76,13 @@ class ManifestParser {
         }
     }
 
+    /**
+     * Writes a KPM lock file to the specified path.
+     *
+     * @param lockFilePath The path where the lock file should be written.
+     * @param lockFile The [LockFile] object to write.
+     * @return A [KResult] indicating success or failure.
+     */
     fun writeLockFile(lockFilePath: Path, lockFile: LockFile): KResult<Unit> {
         return try {
             val content = json.encodeToString(LockFile.serializer(), lockFile)

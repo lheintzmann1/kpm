@@ -29,6 +29,15 @@ import kpm.core.Constants as Consts
 class Template {
     private val templateZipPath: Path = Consts.KPM_TEMPLATES.resolve("base.zip")
 
+    /**
+     * Initializes the project by downloading and extracting the base template.
+     * This method checks if the project directory is already initialized,
+     * ensures necessary directories exist, downloads the template if not present,
+     * and extracts it to the current directory.
+     *
+     * @return KResult<Unit> indicating success or failure of the operation.
+     */
+    // TODO: Add support for other templates
     suspend fun initProject(): KResult<Unit> = withContext(Dispatchers.IO) {
         Logger.debug("Initializing project")
 
@@ -58,6 +67,12 @@ class Template {
         KResult.Success(Unit)
     }
 
+    /**
+     * Downloads the base template from the remote repository if it does not already exist.
+     * The template is downloaded as a ZIP file to the specified path.
+     *
+     * @return KResult<Unit> indicating success or failure of the download operation.
+     */
     private suspend fun downloadTemplate(): KResult<Unit> {
         if (templateZipPath.exists()) {
             Logger.debug("Template already downloaded at ${templateZipPath.toAbsolutePath()}")
@@ -73,6 +88,12 @@ class Template {
             }
     }
 
+    /**
+     * Extracts the downloaded base template ZIP file to the current directory.
+     * This method uses the `unzip` or `tar` command to extract the contents.
+     *
+     * @return KResult<Unit> indicating success or failure of the extraction operation.
+     */
     private suspend fun extractTemplate(): KResult<Unit> {
         Logger.info("Extracting base template...")
 

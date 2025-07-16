@@ -40,6 +40,11 @@ class MavenDownloader {
         }
     }
 
+    /**
+     * Downloads the JAR file for the given Maven coordinate from Maven Central.
+     * @param coordinate The Maven coordinate specifying the artifact to download.
+     * @return A [KResult] containing the path to the downloaded JAR file, or an error if the download failed.
+     */
     suspend fun downloadJar(coordinate: MavenCoordinate): KResult<Path> = withContext(Dispatchers.IO) {
         val jarUrl = buildJarUrl(coordinate)
         val tempJarPath = tempDir.resolve("${coordinate.artifactId}-${coordinate.version}-${System.currentTimeMillis()}.jar")
@@ -62,6 +67,11 @@ class MavenDownloader {
         }
     }
 
+    /**
+     * Downloads the POM file for the given Maven coordinate from Maven Central.
+     * @param coordinate The Maven coordinate specifying the artifact to download.
+     * @return A [KResult] containing the path to the downloaded POM file, or an error if the download failed.
+     */
     suspend fun downloadPom(coordinate: MavenCoordinate): KResult<Path> = withContext(Dispatchers.IO) {
         val pomUrl = buildPomUrl(coordinate)
         val tempPomPath = tempDir.resolve("${coordinate.artifactId}-${coordinate.version}-${System.currentTimeMillis()}.pom")
@@ -82,26 +92,22 @@ class MavenDownloader {
         }
     }
 
+    /**
+     * Builds the URL for the JAR file of the given Maven coordinate.
+     * @param coordinate The Maven coordinate specifying the artifact.
+     * @return The URL to download the JAR file.
+     */
     private fun buildJarUrl(coordinate: MavenCoordinate): String {
         return "$MAVEN_CENTRAL_URL/${coordinate.toPath()}/${coordinate.toFileName()}"
     }
 
+    /**
+     * Builds the URL for the POM file of the given Maven coordinate.
+     * @param coordinate The Maven coordinate specifying the artifact.
+     * @return The URL to download the POM file.
+     */
     private fun buildPomUrl(coordinate: MavenCoordinate): String {
         return "$MAVEN_CENTRAL_URL/${coordinate.toPath()}/${coordinate.artifactId}-${coordinate.version}.pom"
     }
 
-    suspend fun verifyArtifactExists(coordinate: MavenCoordinate): KResult<Boolean> = withContext(Dispatchers.IO) {
-        val jarUrl = buildJarUrl(coordinate)
-
-        // Use HEAD request to check if artifact exists without downloading
-        val headResult = ProcessUtils.runCommand(
-            listOf("curl", "-I", "-s", "-f", jarUrl),
-            timeoutMs = 10_000
-        )
-
-        when (headResult) {
-            is KResult.Success -> KResult.Success(true)
-            is KResult.Error -> KResult.Success(false)
-        }
-    }
 }
