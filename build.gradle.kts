@@ -3,10 +3,11 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 plugins {
     kotlin("jvm") version "2.2.0"
     kotlin("plugin.serialization") version "2.2.0"
+    id("com.github.johnrengelman.shadow") version "8.1.1"
 }
 
 group = "org.luhe"
-version = "0.0.0.19"
+version = "20-experimental"
 
 repositories {
     mavenCentral()

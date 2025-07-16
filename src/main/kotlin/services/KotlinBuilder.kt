@@ -19,423 +19,309 @@ package kpm.services
 import kpm.core.Logger
 import kpm.models.Manifest
 import kpm.core.KResult
+import org.jetbrains.kotlin.cli.common.ExitCode
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSourceLocation
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
-import org.jetbrains.kotlin.cli.jvm.K2JVMCompiler
-import org.jetbrains.kotlin.cli.jvm.compiler.EnvironmentConfigFiles
-import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreEnvironment
-import org.jetbrains.kotlin.cli.jvm.config.addJvmClasspathRoots
-import org.jetbrains.kotlin.cli.common.config.addKotlinSourceRoot
 import org.jetbrains.kotlin.cli.common.messages.MessageRenderer
+import org.jetbrains.kotlin.cli.jvm.K2JVMCompiler
 import org.jetbrains.kotlin.com.intellij.openapi.util.Disposer
-import org.jetbrains.kotlin.config.*
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.jar.JarEntry
 import java.util.jar.JarOutputStream
-import kotlin.io.path.ExperimentalPathApi
 import java.util.jar.Manifest as JarManifest
-import kotlin.io.path.createDirectories
-import kotlin.io.path.deleteRecursively
-import kotlin.io.path.exists
-import kotlin.io.path.isDirectory
-import kotlin.io.path.isRegularFile
-import java.util.concurrent.CopyOnWriteArrayList
+import kotlin.io.path.*
 
 class KotlinBuilder {
 
-    companion object {
-        private const val DEFAULT_KOTLIN_VERSION = "2.2"
-        private const val DEFAULT_API_VERSION = "2.2"
-        private const val DEFAULT_JVM_TARGET = "1.8"
-        private const val TEMP_CLASSES_DIR = "temp-classes"
-
-        // Standard Kotlin libraries that should be included
-        private val KOTLIN_STDLIB_JARS = listOf(
-            "kotlin-stdlib.jar",
-            "kotlin-stdlib-jdk8.jar",
-            "kotlin-reflect.jar"
-        )
-
-        // Optional libraries that might be present
-        private val OPTIONAL_KOTLIN_LIBS = listOf(
-            "kotlin-stdlib-jdk7.jar",
-            "kotlin-script-runtime.jar",
-            "kotlin-stdlib-common.jar",
-            "kotlin-stdlib-js.jar"
-        )
+    private val kotlinHome by lazy {
+        System.getenv("KOTLIN_HOME")
+            ?: error("KOTLIN_HOME environment variable must be set")
     }
 
-    private fun getKotlinHome(): String {
-        return System.getenv("KOTLIN_HOME")
-            ?: throw IllegalStateException("Kotlin compiler path not configured. Please: set the KOTLIN_HOME environment variable to point to your Kotlin installation.")
+    private val kotlinLibDir by lazy {
+        Paths.get(kotlinHome, "lib").also {
+            require(it.exists() && it.isDirectory()) {
+                "Kotlin lib directory not found at: $it"
+            }
+        }
     }
 
-    suspend fun build(manifest: Manifest, outputDir: String): KResult<Unit> {
-        return try {
+    /**
+     * Builds the Kotlin project based on the provided manifest.
+     *
+     * @param manifest The project manifest containing metadata and configuration.
+     * @param outputDir The directory where the compiled JAR file will be placed.
+     * @return A [KResult] indicating success or failure of the build process.
+     */
+    fun build(manifest: Manifest, outputDir: String): KResult<Unit> {
+        return runCatching {
             Logger.info("Starting Kotlin compilation for ${manifest.name}")
 
-            val buildContext = BuildContext(manifest, outputDir)
+            val context = BuildContext(manifest, outputDir)
 
-            // Validate Kotlin installation
+            // Setup and validate
             validateKotlinInstallation()
-                .onError { message, cause -> return KResult.Error(message, cause) }
+            setupBuildDirectories(context)
 
-            // Setup build directories
-            setupBuildDirectories(buildContext)
-                .onError { message, cause -> return KResult.Error(message, cause) }
-
-            // Find and validate source files
+            // Find sources
             val sourceFiles = findKotlinSources()
-            if (sourceFiles.isEmpty()) {
-                return KResult.Error("No Kotlin source files found in src/main/kotlin")
-            }
+            require(sourceFiles.isNotEmpty()) { "No Kotlin source files found in src/main/kotlin" }
             Logger.info("Found ${sourceFiles.size} Kotlin source files")
 
-            // Prepare compilation classpath
+            // Prepare classpath
             val classpath = prepareClasspath()
-                .onError { message, cause -> return KResult.Error(message, cause) }
-                .let { (it as KResult.Success).data }
 
-            // Compile sources using Kotlin API directly
-            compileKotlinSourcesWithAPI(buildContext, sourceFiles, classpath)
-                .onError { message, cause -> return KResult.Error(message, cause) }
+            // Compile
+            compileKotlinSources(context, sourceFiles, classpath)
 
-            // Create JAR file
-            createJarFile(buildContext)
-                .onError { message, cause -> return KResult.Error(message, cause) }
+            // Create JAR
+            createJarFile(context)
 
-            Logger.success("Build completed successfully: ${buildContext.jarFile.absolutePath}")
-            KResult.Success(Unit)
-
-        } catch (e: Exception) {
-            Logger.error("Build failed with exception: ${e.message}", e)
-            KResult.Error("Build failed: ${e.message}", e)
-        }
+            Logger.success("Build completed successfully: ${context.jarFile.absolutePath}")
+        }.fold(
+            onSuccess = { KResult.Success(Unit) },
+            onFailure = { e ->
+                Logger.error("Build failed: ${e.message}", e)
+                KResult.Error("Build failed: ${e.message}", e)
+            }
+        )
     }
 
-    private fun validateKotlinInstallation(): KResult<Unit> {
-        val kotlinHome = getKotlinHome()
-        val kotlinLibDir = Paths.get(kotlinHome, "lib")
-
-        if (!kotlinLibDir.exists() || !kotlinLibDir.isDirectory()) {
-            return KResult.Error("Kotlin lib directory not found at: $kotlinLibDir")
+    /**
+     * Validates the Kotlin installation by checking for required libraries.
+     *
+     * @throws IllegalStateException if any required Kotlin libraries are missing.
+     */
+    private fun validateKotlinInstallation() {
+        val missingJars = REQUIRED_KOTLIN_JARS.filter { !kotlinLibDir.resolve(it).exists() }
+        require(missingJars.isEmpty()) {
+            "Missing required Kotlin libraries: ${missingJars.joinToString(", ")}"
         }
-
-        // Check for required jars
-        val missingJars = KOTLIN_STDLIB_JARS.filter { jarName ->
-            !kotlinLibDir.resolve(jarName).exists()
-        }
-
-        if (missingJars.isNotEmpty()) {
-            return KResult.Error("Missing required Kotlin libraries: ${missingJars.joinToString(", ")}")
-        }
-
         Logger.debug("Kotlin installation validated at: $kotlinHome")
-        return KResult.Success(Unit)
     }
 
+    /**
+     * Sets up the build directories, ensuring the temporary classes directory is clean and ready.
+     *
+     * @param context The build context containing paths and configuration.
+     */
     @OptIn(ExperimentalPathApi::class)
-    private fun setupBuildDirectories(context: BuildContext): KResult<Unit> {
-        return try {
-            // Clean and create temp classes directory
-            if (context.tempClassesDir.exists()) {
-                context.tempClassesDir.deleteRecursively()
-            }
-            context.tempClassesDir.createDirectories()
-
-            // Ensure output directory exists
-            if (!context.outputDir.exists()) {
-                context.outputDir.createDirectories()
-            }
-
-            KResult.Success(Unit)
-        } catch (e: Exception) {
-            KResult.Error("Failed to setup build directories: ${e.message}", e)
+    private fun setupBuildDirectories(context: BuildContext) {
+        // Clean and create temp classes directory
+        context.tempClassesDir.apply {
+            if (exists()) deleteRecursively()
+            createDirectories()
         }
+
+        // Ensure output directory exists
+        context.outputDir.createDirectories()
     }
 
+    /**
+     * Finds all Kotlin source files in the src/main/kotlin directory.
+     *
+     * @return A list of Kotlin source files found.
+     */
     private fun findKotlinSources(): List<File> {
-        val sourceDir = Paths.get("src/main/kotlin")
-        if (!sourceDir.exists() || !sourceDir.isDirectory()) {
-            return emptyList()
-        }
+        val sourceDir = Paths.get(SRC_DIR)
+        if (!sourceDir.exists() || !sourceDir.isDirectory()) return emptyList()
 
-        return try {
+        return runCatching {
             Files.walk(sourceDir)
                 .filter { it.isRegularFile() && it.toString().endsWith(".kt") }
                 .map { it.toFile() }
                 .toList()
-        } catch (e: Exception) {
+        }.getOrElse { e ->
             Logger.error("Failed to scan source files: ${e.message}")
             emptyList()
         }
     }
 
-    private fun prepareClasspath(): KResult<List<File>> {
+    /**
+     * Prepares the classpath for the Kotlin compiler, including standard libraries and project dependencies.
+     *
+     * @return A list of files representing the classpath.
+     */
+    private fun prepareClasspath(): List<File> {
         val classpathFiles = mutableListOf<File>()
 
         // Add Kotlin standard libraries
-        getKotlinStandardLibraries()
-            .onError { message, cause -> return KResult.Error(message, cause) }
-            .onSuccess { stdLibs ->
-                classpathFiles.addAll(stdLibs)
-                Logger.info("Added ${stdLibs.size} Kotlin standard libraries")
-            }
+        classpathFiles.addAll(getKotlinStandardLibraries())
+        Logger.info("Added ${classpathFiles.size} Kotlin standard libraries")
 
-        // Add project dependencies
-        getProjectDependencies()
-            .onError { message, cause ->
-                Logger.warning("Failed to load project dependencies: $message")
-                // Don't fail the build, just continue without project dependencies
+        // Add project dependencies (optional)
+        getProjectDependencies().fold(
+            onSuccess = { deps ->
+                classpathFiles.addAll(deps)
+                Logger.info("Added ${deps.size} project dependencies")
+            },
+            onFailure = { e ->
+                Logger.warning("Failed to load project dependencies: ${e.message}")
             }
-            .onSuccess { projectDeps ->
-                classpathFiles.addAll(projectDeps)
-                Logger.info("Added ${projectDeps.size} project dependencies")
-            }
+        )
 
-        return KResult.Success(classpathFiles)
+        return classpathFiles
     }
 
-    private fun getKotlinStandardLibraries(): KResult<List<File>> {
-        val kotlinHome = getKotlinHome()
-        val kotlinLibPath = Paths.get(kotlinHome, "lib")
-
-        if (!kotlinLibPath.exists() || !kotlinLibPath.isDirectory()) {
-            return KResult.Error("Kotlin lib directory not found at: $kotlinLibPath")
+    /**
+     * Retrieves the required Kotlin standard libraries from the Kotlin installation directory.
+     *
+     * @return A list of files representing the required and optional Kotlin libraries.
+     */
+    private fun getKotlinStandardLibraries(): List<File> {
+        val stdLibs = REQUIRED_KOTLIN_JARS.map { kotlinLibDir.resolve(it).toFile() }
+        val optionalLibs = OPTIONAL_KOTLIN_JARS.mapNotNull { jarName ->
+            kotlinLibDir.resolve(jarName).toFile().takeIf { it.exists() }
         }
 
-        val libFiles = mutableListOf<File>()
-
-        // TODO: Detect which dependencies are needed
-        // Add required libraries
-        KOTLIN_STDLIB_JARS.forEach { jarName ->
-            val jarFile = kotlinLibPath.resolve(jarName).toFile()
-            if (jarFile.exists()) {
-                libFiles.add(jarFile)
-                Logger.debug("Added required Kotlin library: ${jarFile.absolutePath}")
-            } else {
-                return KResult.Error("Required Kotlin library not found: $jarName")
-            }
-        }
-
-        // Add optional libraries if present
-        OPTIONAL_KOTLIN_LIBS.forEach { jarName ->
-            val jarFile = kotlinLibPath.resolve(jarName).toFile()
-            if (jarFile.exists()) {
-                libFiles.add(jarFile)
-                Logger.debug("Added optional Kotlin library: ${jarFile.absolutePath}")
-            }
-        }
-
-        return KResult.Success(libFiles)
+        return stdLibs + optionalLibs
     }
 
-    private fun getProjectDependencies(): KResult<List<File>> {
-        // TODO: Scan the kpm.json and kpm-lock.json files for dependencies
-        val storeDir = Paths.get(".kpm/store")
+    /**
+     * Retrieves project dependencies from the local store directory.
+     *
+     * @return A [Result] containing a list of dependency files or an error if the store directory is invalid.
+     */
+    // TODO: Filter dependencies based on the project manifest to ensure only relevant dependencies are included
+    private fun getProjectDependencies(): Result<List<File>> {
+        val storeDir = Paths.get(STORE_DIR)
         if (!storeDir.exists() || !storeDir.isDirectory()) {
-            return KResult.Success(emptyList())
+            return Result.success(emptyList())
         }
 
-        return try {
-            val projectDeps = Files.walk(storeDir)
+        return runCatching {
+            Files.walk(storeDir)
                 .filter { it.isRegularFile() && it.toString().endsWith(".jar") }
                 .map { it.toFile() }
                 .toList()
-            KResult.Success(projectDeps)
-        } catch (e: Exception) {
-            KResult.Error("Failed to scan project dependencies: ${e.message}", e)
         }
     }
 
-    private fun compileKotlinSourcesWithAPI(
+    /**
+     * Compiles the provided Kotlin source files using the K2JVMCompiler.
+     *
+     * @param context The build context containing paths and configuration.
+     * @param sourceFiles The list of Kotlin source files to compile.
+     * @param classpath The classpath to use for compilation.
+     */
+    // TODO: Use Kotlin build tools API instead of K2JVMCompiler
+    // TODO: Add support for incremental compilation and better error handling
+    private fun compileKotlinSources(
         context: BuildContext,
         sourceFiles: List<File>,
         classpath: List<File>
-    ): KResult<Unit> {
-        Logger.info("Starting Kotlin compilation with API...")
+    ) {
+        Logger.info("Starting Kotlin compilation...")
 
         val messageCollector = CompilerMessageCollector()
         val disposable = Disposer.newDisposable()
 
-        return try {
-            // Create compiler configuration
-            val configuration = createCompilerConfiguration(context, classpath, sourceFiles, messageCollector)
-
-            // Create Kotlin environment
-            val environment = KotlinCoreEnvironment.createForProduction(
-                disposable,
-                configuration,
-                EnvironmentConfigFiles.JVM_CONFIG_FILES
-            )
-
-            // Use K2JVMCompiler directly
+        try {
             val compiler = K2JVMCompiler()
-
-            // Build compiler arguments based on kotlinc script behavior
             val args = buildCompilerArgs(context, classpath, sourceFiles)
 
             Logger.debug("Compiler arguments: ${args.joinToString(" ")}")
 
-            // Execute compilation
             val exitCode = compiler.exec(System.err, MessageRenderer.PLAIN_RELATIVE_PATHS, *args)
-
             handleCompilationResult(exitCode, messageCollector)
 
-        } catch (e: Exception) {
-            Logger.error("Compilation failed with exception: ${e.message}", e)
-            KResult.Error("Compilation failed: ${e.message}", e)
         } finally {
             disposable.dispose()
         }
     }
 
-    private fun createCompilerConfiguration(
-        context: BuildContext,
-        classpath: List<File>,
-        sourceFiles: List<File>,
-        messageCollector: MessageCollector
-    ): CompilerConfiguration {
-        return CompilerConfiguration().apply {
-            val kotlinHome = getKotlinHome()
-
-            // Set language version settings
-            put(CommonConfigurationKeys.LANGUAGE_VERSION_SETTINGS,
-                LanguageVersionSettingsImpl(
-                    LanguageVersion.fromVersionString(DEFAULT_KOTLIN_VERSION) ?: LanguageVersion.LATEST_STABLE,
-                    ApiVersion.createByLanguageVersion(LanguageVersion.fromVersionString(DEFAULT_API_VERSION) ?: LanguageVersion.LATEST_STABLE)
-                ))
-
-            // Set JVM target
-            put(JVMConfigurationKeys.JVM_TARGET, JvmTarget.fromString(DEFAULT_JVM_TARGET) ?: JvmTarget.JVM_1_8)
-
-            // Set output directory
-            put(JVMConfigurationKeys.OUTPUT_DIRECTORY, context.tempClassesDir.toFile())
-
-            // Set module name
-            put(CommonConfigurationKeys.MODULE_NAME, context.manifest.name)
-
-            // Add message collector
-            put(CommonConfigurationKeys.MESSAGE_COLLECTOR_KEY, messageCollector)
-
-            // Add classpath roots
-            if (classpath.isNotEmpty()) {
-                addJvmClasspathRoots(classpath)
-            }
-
-            // Add source roots
-            sourceFiles.forEach { sourceFile ->
-                addKotlinSourceRoot(sourceFile.absolutePath)
-            }
-
-            // Enable incremental compilation
-            put(CommonConfigurationKeys.USE_FIR, true)
-
-            // Enable parallel compilation
-            put(CommonConfigurationKeys.PARALLEL_BACKEND_THREADS,
-                Runtime.getRuntime().availableProcessors().coerceAtMost(8))
-        }
-    }
-
+    /**
+     * Builds the compiler arguments for the K2JVMCompiler.
+     *
+     * @param context The build context containing paths and configuration.
+     * @param classpath The classpath to use for compilation.
+     * @param sourceFiles The list of Kotlin source files to compile.
+     * @return An array of strings representing the compiler arguments.
+     */
     private fun buildCompilerArgs(
         context: BuildContext,
         classpath: List<File>,
         sourceFiles: List<File>
-    ): Array<String> {
-        val args = mutableListOf<String>()
+    ): Array<String> = buildList {
+        // Basic compilation settings
+        addAll(listOf("-d", context.tempClassesDir.toString()))
+        addAll(listOf("-module-name", context.manifest.name))
+        addAll(listOf("-jvm-target", JVM_TARGET))
+        addAll(listOf("-language-version", KOTLIN_VERSION))
+        addAll(listOf("-api-version", API_VERSION))
 
-        // Output directory
-        args.addAll(listOf("-d", context.tempClassesDir.toString()))
-
-        // Module name
-        args.addAll(listOf("-module-name", context.manifest.name))
-
-        // JVM target
-        args.addAll(listOf("-jvm-target", DEFAULT_JVM_TARGET))
-
-        // Language version
-        args.addAll(listOf("-language-version", DEFAULT_KOTLIN_VERSION))
-
-        // TODO: Fix this, use KOTLIN_HOME env or config instead
-        // Prevent automatically adding the Kotlin stdlib and reflect jars
-        args.addAll(listOf("-no-stdlib", "-no-reflect"))
-
-        // API version
-        args.addAll(listOf("-api-version", DEFAULT_API_VERSION))
-
-        // Classpath (including Kotlin stdlib)
+        // Classpath
         if (classpath.isNotEmpty()) {
-            args.addAll(listOf("-classpath", classpath.joinToString(File.pathSeparator) { it.absolutePath }))
+            addAll(listOf("-classpath", classpath.joinToString(File.pathSeparator) { it.absolutePath }))
         }
 
-        // Progressive mode for better performance
-        args.add("-progressive")
+        // Optimization flags
+        addAll(listOf("-no-stdlib", "-no-reflect", "-progressive", "-Xsuppress-version-warnings"))
 
-        // Suppress version warnings
-        args.add("-Xsuppress-version-warnings")
+        // Source files
+        sourceFiles.forEach { add(it.absolutePath) }
+    }.toTypedArray()
 
-        // Add source files
-        sourceFiles.forEach { sourceFile ->
-            args.add(sourceFile.absolutePath)
-        }
-
-        return args.toTypedArray()
-    }
-
-    private fun handleCompilationResult(
-        exitCode: org.jetbrains.kotlin.cli.common.ExitCode,
-        messageCollector: CompilerMessageCollector
-    ): KResult<Unit> {
-        return when (exitCode) {
-            org.jetbrains.kotlin.cli.common.ExitCode.OK -> {
+    /**
+     * Handles the result of the Kotlin compilation, logging messages and errors as appropriate.
+     *
+     * @param exitCode The exit code from the compiler.
+     * @param messageCollector The collector for compiler messages.
+     */
+    private fun handleCompilationResult(exitCode: ExitCode, messageCollector: CompilerMessageCollector) {
+        when (exitCode) {
+            ExitCode.OK -> {
                 Logger.success("Compilation completed successfully")
                 if (messageCollector.hasWarnings()) {
                     Logger.warning("Compilation completed with ${messageCollector.warningCount} warnings")
                 }
-                KResult.Success(Unit)
             }
-            org.jetbrains.kotlin.cli.common.ExitCode.COMPILATION_ERROR -> {
+            ExitCode.COMPILATION_ERROR -> {
                 val errorMessage = if (messageCollector.hasErrors()) {
                     "Compilation failed with ${messageCollector.errorCount} errors:\n${messageCollector.getErrorSummary()}"
                 } else {
                     "Compilation failed with unknown errors"
                 }
-                KResult.Error(errorMessage)
+                error(errorMessage)
             }
-            else -> {
-                KResult.Error("Compilation failed with exit code: $exitCode")
-            }
+            else -> error("Compilation failed with exit code: $exitCode")
         }
     }
 
-    private fun createJarFile(context: BuildContext): KResult<Unit> {
+    /**
+     * Creates the JAR file from the compiled classes in the temporary directory.
+     *
+     * @param context The build context containing paths and configuration.
+     */
+    private fun createJarFile(context: BuildContext) {
         Logger.info("Creating JAR file...")
 
-        return try {
-            val jarManifest = createJarManifest(context.manifest)
-            val bufferSize = 8192 // 8KB buffer
+        val jarManifest = createJarManifest(context.manifest)
 
-            FileOutputStream(context.jarFile).buffered(bufferSize).use { fileOut ->
-                JarOutputStream(fileOut, jarManifest).use { jarOut ->
-                    addDirectoryToJar(jarOut, context.tempClassesDir.toFile())
-                }
+        FileOutputStream(context.jarFile).buffered(BUFFER_SIZE).use { fileOut ->
+            JarOutputStream(fileOut, jarManifest).use { jarOut ->
+                addDirectoryToJar(jarOut, context.tempClassesDir.toFile())
             }
-
-            // Clean up temporary directory
-            cleanupTempDirectory(context.tempClassesDir)
-
-            Logger.success("JAR file created: ${context.jarFile.absolutePath}")
-            KResult.Success(Unit)
-        } catch (e: Exception) {
-            KResult.Error("Failed to create JAR file: ${e.message}", e)
         }
+
+        // Clean up temporary directory
+        cleanupTempDirectory(context.tempClassesDir)
+
+        Logger.success("JAR file created: ${context.jarFile.absolutePath}")
     }
 
+    /**
+     * Creates a JAR manifest with the necessary attributes.
+     *
+     * @param manifest The project manifest containing metadata.
+     * @return A [JarManifest] object with the main attributes set.
+     */
     private fun createJarManifest(manifest: Manifest): JarManifest {
         return JarManifest().apply {
             mainAttributes.apply {
@@ -453,6 +339,12 @@ class KotlinBuilder {
         }
     }
 
+    /**
+     * Adds the contents of a directory to a JAR output stream, preserving the directory structure.
+     *
+     * @param jarOutputStream The JAR output stream to write to.
+     * @param directory The directory to add to the JAR.
+     */
     private fun addDirectoryToJar(jarOutputStream: JarOutputStream, directory: File) {
         val visited = mutableSetOf<String>()
 
@@ -463,50 +355,54 @@ class KotlinBuilder {
                     .replace('\\', '/')
                     .let { if (it.isEmpty()) file.name else it }
 
-                // Avoid duplicate entries
-                if (visited.contains(relativePath)) {
-                    return@forEach
-                }
+                if (relativePath in visited) return@forEach
                 visited.add(relativePath)
 
-                try {
-                    if (file.isDirectory) {
-                        // Add directory entry with trailing slash
-                        if (relativePath.isNotEmpty()) {
-                            val dirEntry = JarEntry("$relativePath/")
-                            dirEntry.time = file.lastModified()
-                            jarOutputStream.putNextEntry(dirEntry)
+                runCatching {
+                    when {
+                        file.isDirectory -> {
+                            if (relativePath.isNotEmpty()) {
+                                val dirEntry = JarEntry("$relativePath/").apply { time = file.lastModified() }
+                                jarOutputStream.putNextEntry(dirEntry)
+                                jarOutputStream.closeEntry()
+                            }
+                        }
+                        else -> {
+                            val fileEntry = JarEntry(relativePath).apply { time = file.lastModified() }
+                            jarOutputStream.putNextEntry(fileEntry)
+                            file.inputStream().buffered().use { it.copyTo(jarOutputStream) }
                             jarOutputStream.closeEntry()
                         }
-                    } else {
-                        // Add file entry
-                        val fileEntry = JarEntry(relativePath)
-                        fileEntry.time = file.lastModified()
-                        jarOutputStream.putNextEntry(fileEntry)
-                        file.inputStream().buffered().use { input ->
-                            input.copyTo(jarOutputStream)
-                        }
-                        jarOutputStream.closeEntry()
                     }
-                } catch (e: Exception) {
+                }.onFailure { e ->
                     Logger.warning("Failed to add entry $relativePath: ${e.message}")
                 }
             }
     }
 
+    /**
+     * Cleans up the temporary directory used for compilation.
+     *
+     * @param tempDir The temporary directory to clean up.
+     */
     @OptIn(ExperimentalPathApi::class)
     private fun cleanupTempDirectory(tempDir: Path) {
-        try {
+        runCatching {
             if (tempDir.exists()) {
                 tempDir.deleteRecursively()
                 Logger.debug("Cleaned up temporary directory: $tempDir")
             }
-        } catch (e: Exception) {
+        }.onFailure { e ->
             Logger.warning("Failed to clean up temporary directory: ${e.message}")
         }
     }
 
-    // Helper classes for better organization
+    /**
+     * Represents the build context containing paths and configuration for the build process.
+     *
+     * @property manifest The project manifest containing metadata and configuration.
+     * @property outputDirPath The path to the output directory where the JAR file will be placed.
+     */
     private data class BuildContext(
         val manifest: Manifest,
         val outputDirPath: String
@@ -516,26 +412,23 @@ class KotlinBuilder {
         val jarFile: File = outputDir.resolve("${manifest.name}.jar").toFile()
     }
 
+    /**
+     * A custom message collector for the Kotlin compiler that collects and logs messages.
+     */
     private class CompilerMessageCollector : MessageCollector {
         private val errors = CopyOnWriteArrayList<String>()
         private val warnings = CopyOnWriteArrayList<String>()
-        private val infos = CopyOnWriteArrayList<String>()
 
         val errorCount: Int get() = errors.size
         val warningCount: Int get() = warnings.size
-        val infoCount: Int get() = infos.size
 
         override fun clear() {
             errors.clear()
             warnings.clear()
-            infos.clear()
         }
 
         override fun hasErrors(): Boolean = errors.isNotEmpty()
-
         fun hasWarnings(): Boolean = warnings.isNotEmpty()
-
-        fun hasInfos(): Boolean = infos.isNotEmpty()
 
         override fun report(
             severity: CompilerMessageSeverity,
@@ -547,9 +440,7 @@ class KotlinBuilder {
                     append(loc.path)
                     if (loc.line > 0) {
                         append(':').append(loc.line)
-                        if (loc.column > 0) {
-                            append(':').append(loc.column)
-                        }
+                        if (loc.column > 0) append(':').append(loc.column)
                     }
                 }
             } ?: ""
@@ -567,7 +458,6 @@ class KotlinBuilder {
                     Logger.warning("Compilation warning: $fullMessage")
                 }
                 CompilerMessageSeverity.INFO -> {
-                    infos.add(fullMessage)
                     Logger.info("Compiler info: $fullMessage")
                 }
                 CompilerMessageSeverity.LOGGING -> {
@@ -580,19 +470,37 @@ class KotlinBuilder {
         }
 
         fun getErrorSummary(): String = buildString {
-            val displayErrors = errors.take(10)
+            val displayErrors = errors.take(MAX_ERROR_DISPLAY)
             append(displayErrors.joinToString("\n"))
-            if (errors.size > 10) {
-                append("\n... and ${errors.size - 10} more errors")
+            if (errors.size > MAX_ERROR_DISPLAY) {
+                append("\n... and ${errors.size - MAX_ERROR_DISPLAY} more errors")
             }
         }
+    }
 
-        fun getWarningSummary(): String = buildString {
-            val displayWarnings = warnings.take(5)
-            append(displayWarnings.joinToString("\n"))
-            if (warnings.size > 5) {
-                append("\n... and ${warnings.size - 5} more warnings")
-            }
-        }
+    /**
+     * A companion object containing constants and utility methods for the KotlinBuilder.
+     */
+    companion object {
+        private const val KOTLIN_VERSION = "2.2"
+        private const val API_VERSION = "2.2"
+        private const val JVM_TARGET = "1.8"
+        private const val TEMP_CLASSES_DIR = "temp-classes"
+        private const val SRC_DIR = "src/main/kotlin"
+        private const val STORE_DIR = ".kpm/store"
+        private const val BUFFER_SIZE = 8192
+        private const val MAX_ERROR_DISPLAY = 10
+
+        private val REQUIRED_KOTLIN_JARS = listOf(
+            "kotlin-stdlib.jar",
+            "kotlin-stdlib-jdk8.jar",
+            "kotlin-reflect.jar"
+        )
+
+        private val OPTIONAL_KOTLIN_JARS = listOf(
+            "kotlin-stdlib-jdk7.jar",
+            "kotlin-script-runtime.jar",
+            "kotlin-stdlib-common.jar"
+        )
     }
 }
