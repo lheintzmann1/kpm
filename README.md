@@ -25,6 +25,26 @@ Examples (Windows):
 - `C:\Program Files\Kotlin\bin` is not valid,
 - `C:\Program Files\Kotlin\lib` is not valid,
 - `C:\Program Files\Kotlin` is valid.
+- 
+## Dependencies
+
+Dependencies are managed through the `kpm.json` manifest file in your project root. Each dependency is specified using Maven coordinates in the following format:
+
+`"group:artifact:version"`
+
+Example `kpm.json` file:
+
+```json
+{
+  "name": "my-kotlin-app",
+  "version": "1.0",
+  "main": "com.example.app.AppKt",
+  "dependencies": [
+    "org.jetbrains.kotlin:kotlin-stdlib:1.8.0",
+    "com.example:my-library:1.0.0"
+  ]
+}
+```
 
 ## License
 
