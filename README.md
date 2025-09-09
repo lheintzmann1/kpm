@@ -1,7 +1,10 @@
 ﻿# KPM Kotlin Package Manager
 
 [![License](https://img.shields.io/github/license/lheintzmann1/kpm)](https://opensource.org/licenses/Apache-2.0)
-![Lifecycle](https://img.shields.io/badge/lifecycle-Experimental-teal)
+![Lifecycle](https://img.shields.io/badge/lifecycle-Unmaintained-red)
+
+> [!CAUTION]
+> This project is no longer actively maintained. Use at your own risk.
 
 ## About
 
